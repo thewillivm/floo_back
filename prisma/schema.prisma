@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                Int                @id @default(autoincrement())
+  name              String
+  username          String             @unique
+  email             String             @unique
+  phone             String?
+  password          String
+  avatar            String?
+  role              String             @default("creator") // "user" or "creator"
+  bio               String?            @db.Text
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  posts             Post[]
+  purchases         Purchase[]
+  followers         Follow[]           @relation("following")
+  following         Follow[]           @relation("follower")
+  pushSubscriptions PushSubscription[]
+  notifications     Notification[]     @relation("recipient")
+  actions           Notification[]     @relation("actor")
+  withdrawals       Withdrawal[]
+}
+
+model Follow {
+  id          Int      @id @default(autoincrement())
+  follower    User     @relation("follower", fields: [followerId], references: [id])
+  followerId  Int
+  following   User     @relation("following", fields: [followingId], references: [id])
+  followingId Int
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+}
+
+model Post {
+  id          Int        @id @default(autoincrement())
+  title       String
+  description String?    @db.Text
+  type        String // "image", "pdf", etc.
+  price       Float
+  previewUrl  String
+  fullUrl     String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  creator     User       @relation(fields: [creatorId], references: [id])
+  creatorId   Int
+  purchases   Purchase[]
+}
+
+model Purchase {
+  id        Int      @id @default(autoincrement())
+  amount    Float
+  createdAt DateTime @default(now())
+  buyer     User     @relation(fields: [buyerId], references: [id])
+  buyerId   Int
+  post      Post     @relation(fields: [postId], references: [id])
+  postId    Int
+}
+
+model Withdrawal {
+  id            Int      @id @default(autoincrement())
+  amount        Float
+  status        String   @default("PENDING") // "PENDING", "COMPLETED", "REJECTED"
+  phone         String
+  paymentMethod String // "ORANGE", "MTN", "WAVE", "MOOV"
+  createdAt     DateTime @default(now())
+  creator       User     @relation(fields: [creatorId], references: [id])
+  creatorId     Int
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  endpoint  String   @unique @db.VarChar(255)
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  type      String // "NEW_POST", "SALE", etc.
+  title     String
+  message   String   @db.Text
+  link      String? // Link to the content (e.g., /post/1)
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  userId Int // Recipient
+  user   User @relation("recipient", fields: [userId], references: [id], onDelete: Cascade)
+
+  actorId Int? // User who triggered the notification (optional)
+  actor   User? @relation("actor", fields: [actorId], references: [id], onDelete: SetNull)
+}
